@@ -192,6 +192,7 @@
   <button data-view="shopping" onclick="showView('shopping')">🛒 Einkaufsliste</button>
   <button data-view="add" onclick="showView('add')">➕ Rezept anlegen</button>
   <button data-view="profile" onclick="showView('profile')">👤 Profil</button>
+  <button data-view="admin" onclick="showView('admin')" id="adminTabBtn" style="display:none">🛠️ Admin</button>
 </nav>
 
 <main>
@@ -320,6 +321,31 @@
     </div>
   </section>
 
+  <!-- ADMIN -->
+  <section class="view" id="view-admin">
+    <h2 style="margin-top:0">Admin-Panel</h2>
+    <p style="color:var(--muted);font-size:14px;margin-top:-8px;">Maximal 5 Admin-Konten gleichzeitig (in der Datenbank fest begrenzt). Nur du entscheidest, wer Admin wird.</p>
+
+    <div class="card-panel">
+      <h3 style="margin-top:0">Nutzerverwaltung <span id="adminSlotCount" style="font-weight:400;font-size:13px;color:var(--muted)"></span></h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="adminUserSearch" placeholder="Nutzername suchen…" oninput="renderAdminUsers()" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);">
+      </div>
+      <div id="adminUsersContainer" class="loading-spin">Lade…</div>
+    </div>
+
+    <div class="card-panel">
+      <h3 style="margin-top:0">Rezeptverwaltung</h3>
+      <p style="color:var(--muted);font-size:13px;margin-top:-6px;">Zeigt öffentliche Rezepte sowie deine eigenen. Private Rezepte anderer Nutzer bleiben aus Datenschutzgründen unsichtbar.</p>
+      <div id="adminRecipesContainer" class="loading-spin">Lade…</div>
+    </div>
+
+    <div class="card-panel">
+      <h3 style="margin-top:0">Bewertungen &amp; Kommentare moderieren</h3>
+      <div id="adminRatingsContainer" class="loading-spin">Lade…</div>
+    </div>
+  </section>
+
 </main>
 
 <!-- RECIPE DETAIL MODAL -->
@@ -366,6 +392,8 @@ let categories = [];
 let recipes = [];
 let favoriteIds = new Set();
 let shoppingItems = [];
+let isAdmin = false;
+let myProfile = null;
 
 /* ---------- Store sections (ported from app) ---------- */
 const STORE_PROFILES = {
@@ -479,6 +507,7 @@ function showView(name) {
   if (name === 'shopping') renderShoppingList();
   if (name === 'profile') renderProfile();
   if (name === 'add') renderAddRecipeGate();
+  if (name === 'admin') renderAdminPanel();
   window.scrollTo(0,0);
 }
 
@@ -561,9 +590,131 @@ function afterSessionChange() {
   updateAccountChip();
   loadFavoriteIds();
   renderFeed();
+  checkAdminStatus();
   if (document.getElementById('view-shopping').classList.contains('active')) renderShoppingList();
   if (document.getElementById('view-profile').classList.contains('active')) renderProfile();
   if (document.getElementById('view-add').classList.contains('active')) renderAddRecipeGate();
+  if (document.getElementById('view-admin').classList.contains('active')) renderAdminPanel();
+}
+
+/* ---------- Admin ---------- */
+async function checkAdminStatus() {
+  isAdmin = false;
+  myProfile = null;
+  if (!session || isGuest()) { document.getElementById('adminTabBtn').style.display = 'none'; return; }
+  const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+  myProfile = data || null;
+  isAdmin = myProfile?.role === 'admin';
+  document.getElementById('adminTabBtn').style.display = isAdmin ? 'inline-flex' : 'none';
+}
+
+async function renderAdminPanel() {
+  if (!isAdmin) {
+    document.getElementById('view-admin').innerHTML = '<div class="empty-state">Kein Zugriff. Dieser Bereich ist Admins vorbehalten.</div>';
+    return;
+  }
+  await Promise.all([renderAdminUsers(), renderAdminRecipesPanel(), renderAdminRatingsPanel()]);
+}
+
+let adminUsersCache = [];
+async function renderAdminUsers() {
+  const container = document.getElementById('adminUsersContainer');
+  if (adminUsersCache.length === 0) {
+    container.innerHTML = '<div class="loading-spin">Lade…</div>';
+    const { data, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+    if (error) { container.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+    adminUsersCache = data || [];
+  }
+  const adminCount = adminUsersCache.filter((u) => u.role === 'admin').length;
+  document.getElementById('adminSlotCount').textContent = `(${adminCount} / 5 Admin-Slots belegt)`;
+
+  const search = (document.getElementById('adminUserSearch').value || '').toLowerCase();
+  let list = adminUsersCache;
+  if (search) list = list.filter((u) => (u.username||'').toLowerCase().includes(search) || (u.display_name||'').toLowerCase().includes(search));
+
+  container.innerHTML = list.map((u) => `
+    <div class="shop-item" style="flex-wrap:wrap;">
+      <span class="name">
+        ${u.role === 'admin' ? '🛠️ ' : ''}${u.banned ? '🚫 ' : ''}${escapeHtml(u.display_name || u.username)}
+        <span style="color:var(--muted);font-weight:400;font-size:12px;">@${escapeHtml(u.username)}</span>
+      </span>
+      <button class="btn btn-outline" style="padding:6px 10px;font-size:12px;" onclick="adminToggleBan('${u.id}', ${!u.banned})">${u.banned ? 'Entsperren' : 'Sperren'}</button>
+      <button class="btn ${u.role==='admin' ? 'btn-danger' : 'btn-outline'}" style="padding:6px 10px;font-size:12px;" onclick="adminToggleRole('${u.id}', '${u.role === 'admin' ? 'user' : 'admin'}')" ${u.id === session.user.id ? 'disabled title="Du kannst dich nicht selbst entfernen"' : ''}>${u.role === 'admin' ? 'Admin entfernen' : 'Zum Admin machen'}</button>
+    </div>`).join('') || '<p style="color:var(--muted);font-size:13px;">Keine Nutzer gefunden.</p>';
+}
+
+async function adminToggleBan(userId, banned) {
+  const { error } = await sb.from('profiles').update({ banned }).eq('id', userId);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  adminUsersCache = [];
+  renderAdminUsers();
+}
+
+async function adminToggleRole(userId, newRole) {
+  if (newRole === 'admin') {
+    const adminCount = adminUsersCache.filter((u) => u.role === 'admin').length;
+    if (adminCount >= 5) { alert('Maximal 5 Admin-Konten erlaubt. Bitte zuerst einen bestehenden Admin entfernen.'); return; }
+    if (!confirm('Diesen Nutzer zum Admin machen? Admins können alle Rezepte, Nutzer und Kommentare verwalten.')) return;
+  } else {
+    if (!confirm('Admin-Rechte für diesen Nutzer entfernen?')) return;
+  }
+  const { error } = await sb.from('profiles').update({ role: newRole }).eq('id', userId);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  adminUsersCache = [];
+  renderAdminUsers();
+}
+
+let adminRecipesCache = null;
+async function renderAdminRecipesPanel() {
+  const container = document.getElementById('adminRecipesContainer');
+  container.innerHTML = '<div class="loading-spin">Lade…</div>';
+  const { data, error } = await sb.from('recipes').select('id, title, is_public, author_id, profiles!author_id(username), created_at').order('created_at', { ascending: false }).limit(50);
+  if (error) { container.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+  adminRecipesCache = data || [];
+  if (adminRecipesCache.length === 0) { container.innerHTML = '<p style="color:var(--muted);font-size:13px;">Keine Rezepte gefunden.</p>'; return; }
+  container.innerHTML = adminRecipesCache.map((r) => `
+    <div class="shop-item">
+      <span class="name">${!r.is_public ? '🔒 ' : ''}${escapeHtml(r.title)} <span style="color:var(--muted);font-weight:400;font-size:12px;">von @${escapeHtml(r.profiles?.username || '?')}</span></span>
+      <button class="btn btn-outline" style="padding:6px 10px;font-size:12px;" onclick="openRecipeDetail('${r.id}')">Ansehen</button>
+      <button class="btn btn-danger" style="padding:6px 10px;font-size:12px;" onclick="adminDeleteRecipe('${r.id}')">Löschen</button>
+    </div>`).join('');
+}
+
+async function adminDeleteRecipe(id) {
+  if (!confirm('Dieses Rezept unwiderruflich löschen?')) return;
+  const { error } = await sb.from('recipes').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  adminRecipesCache = null;
+  renderAdminRecipesPanel();
+  await loadRecipes();
+  renderFeed();
+}
+
+async function renderAdminRatingsPanel() {
+  const container = document.getElementById('adminRatingsContainer');
+  container.innerHTML = '<div class="loading-spin">Lade…</div>';
+  const { data, error } = await sb.from('ratings').select('id, stars, comment, recipe_id, user_id, created_at, recipes(title), profiles!user_id(username)').not('comment', 'is', null).order('created_at', { ascending: false }).limit(50);
+  if (error) { container.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+  const list = (data || []).filter((r) => r.comment);
+  if (list.length === 0) { container.innerHTML = '<p style="color:var(--muted);font-size:13px;">Keine Kommentare vorhanden.</p>'; return; }
+  container.innerHTML = list.map((r) => `
+    <div class="shop-item" style="align-items:flex-start;">
+      <span class="name" style="flex-direction:column;align-items:flex-start;display:flex;">
+        <span style="font-size:12px;color:var(--muted);">@${escapeHtml(r.profiles?.username||'?')} zu „${escapeHtml(r.recipes?.title||'?')}“ · ${'★'.repeat(r.stars)}</span>
+        <span>${escapeHtml(r.comment)}</span>
+      </span>
+      <button class="btn btn-danger" style="padding:6px 10px;font-size:12px;" onclick="adminDeleteRating('${r.id}')">Löschen</button>
+    </div>`).join('');
+}
+
+async function adminDeleteRating(id) {
+  if (!confirm('Diesen Kommentar/diese Bewertung löschen?')) return;
+  const { error } = await sb.from('ratings').delete().eq('id', id);
+  if (error) {
+    alert('Löschen fehlgeschlagen: ' + error.message + '\n\nHinweis: dafür braucht die Datenbank noch eine zusätzliche Admin-Policy für "ratings" (delete). Sag Bescheid, dann bekommst du das passende SQL-Snippet.');
+    return;
+  }
+  renderAdminRatingsPanel();
 }
 
 /* ---------- Categories ---------- */

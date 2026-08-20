@@ -476,12 +476,42 @@ function groupItemsByStore(profileId, items) {
   return sections;
 }
 
-/* ---------- Simple content filter (ported subset) ---------- */
-const BANNED_WORDS = ['arschloch','wichser','hurensohn','missgeburt','bastard','schlampe','fotze','drecksau','spast','vollidiot','sieg heil','heil hitler','white power'];
+/* ---------- Content filter (ported from der App, inkl. Umgehungsschutz) ---------- */
+const INSULTS = ['arschloch','wichser','hurensohn','hurentochter','missgeburt','bastard','schlampe','fotze','drecksau','wixer','spast','spasti','mongo','untermensch','schwuchtel','fettsau','hackfresse','vollidiot','hurenkind','kannstduverrecken','verpiss dich','halt die fresse','fick dich'];
+const PROFANITY_EN = ['fuck','motherfucker','fucker','shit','bullshit','bitch','asshole','cunt','pussy','whore','slut','bastard','dumbass','twat'];
+const HATE_SLURS = ['judensau','kanake','kameltreiber','kjustajude','zigeuner','negerkuss','schlitzauge','polacke','russenschwein','islamistenpack','auslanderpack','auslaenderpack'];
+const EXTREMIST_SLOGANS = ['sieg heil','siegheil','heil hitler','heilhitler','juden raus','judenraus','auslander raus','auslaender raus','auslanderraus','deutschland den deutschen','meine ehre heisst treue','meine ehre heißt treue','ruhm und ehre der waffen ss','kauft nicht bei juden','weisse macht','weiße macht','white power','blut und ehre','blood and honour','hakenkreuz','nationalsozialismus war gut','hitler hatte recht','ns zeit war besser','1488','14 words','14 worte'];
+
+function normalizeForFilter(text) {
+  let s = text.toLowerCase();
+  s = s.replace(/0/g,'o').replace(/1(?!4)/g,'i').replace(/3/g,'e').replace(/4(?!8)/g,'a').replace(/5/g,'s').replace(/7/g,'t').replace(/\$/g,'s').replace(/@/g,'a');
+  s = s.replace(/[äàáâ]/g,'a').replace(/[öòóô]/g,'o').replace(/[üùúû]/g,'u').replace(/ß/g,'ss').replace(/[éèê]/g,'e');
+  s = s.replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  return s;
+}
+// Prüft sowohl mit Leerzeichen (normalized) als auch komplett ohne Trennzeichen
+// (compact) — fängt Umgehungen wie "f/uck" oder "f.u.c.k" ab, bei denen
+// Sonderzeichen die Buchstaben auseinanderreißen.
+function matchesAnyWord(normalized, compact, words) {
+  return words.some((word) => {
+    const w = normalizeForFilter(word);
+    const wCompact = w.replace(/\s+/g,'');
+    return normalized.includes(w) || compact.includes(wCompact);
+  });
+}
 function checkContent(text) {
-  const n = text.toLowerCase();
-  for (const w of BANNED_WORDS) { if (n.includes(w)) return { blocked: true }; }
+  if (!text || !text.trim()) return { blocked: false };
+  const normalized = normalizeForFilter(text);
+  const compact = normalized.replace(/\s+/g,'');
+  if (matchesAnyWord(normalized, compact, EXTREMIST_SLOGANS)) return { blocked: true, reason: 'extremist' };
+  if (matchesAnyWord(normalized, compact, HATE_SLURS)) return { blocked: true, reason: 'hate' };
+  if (matchesAnyWord(normalized, compact, INSULTS) || matchesAnyWord(normalized, compact, PROFANITY_EN)) return { blocked: true, reason: 'insult' };
   return { blocked: false };
+}
+function blockedMessage(reason) {
+  if (reason === 'extremist') return 'Dein Kommentar enthält Inhalte, die gegen unsere Regeln verstoßen (menschenverachtende/extremistische Parolen) und wurde nicht veröffentlicht.';
+  if (reason === 'hate') return 'Dein Kommentar enthält diskriminierende Sprache und wurde nicht veröffentlicht.';
+  return 'Dein Kommentar enthält beleidigende Sprache. Bitte formuliere ihn sachlich.';
 }
 
 /* ---------- Utility ---------- */
@@ -862,7 +892,7 @@ async function submitRating(recipeId) {
   const comment = document.getElementById('ratingComment').value.trim();
   if (comment) {
     const check = checkContent(comment);
-    if (check.blocked) { msgEl.innerHTML = '<div class="msg error">Dein Kommentar enthält unzulässige Sprache und wurde nicht veröffentlicht.</div>'; return; }
+    if (check.blocked) { msgEl.innerHTML = `<div class="msg error">${escapeHtml(blockedMessage(check.reason))}</div>`; return; }
   }
   const { error } = await sb.from('ratings').upsert(
     { recipe_id: recipeId, user_id: session.user.id, stars, comment: comment || null },

@@ -239,10 +239,28 @@
   <!-- ADD RECIPE -->
   <section class="view" id="view-add">
     <h2 style="margin-top:0">Eigenes Rezept anlegen</h2>
-    <p style="color:var(--muted);font-size:14px;margin-top:-8px;">Foto-Scan, Kühlschrank-Scan und Link-Import bleiben aktuell der App vorbehalten &mdash; hier kannst du Rezepte manuell eintragen.</p>
+    <p style="color:var(--muted);font-size:14px;margin-top:-8px;">Kühlschrank-Scan bleibt aktuell der App vorbehalten &mdash; Foto- und Link-Import kannst du hier direkt nutzen.</p>
     <div class="card-panel" id="addRecipeGate">
       <p>Bitte melde dich an, um ein Rezept zu veröffentlichen.</p>
       <button class="btn btn-primary" onclick="openAuthModal('signin')">Anmelden</button>
+    </div>
+    <div class="card-panel" id="recipeImportPanel" style="display:none">
+      <h3 style="margin-top:0">Schnell-Import (optional)</h3>
+      <p style="color:var(--muted);font-size:13px;margin-top:-6px;">Rezept per Foto oder Link laden &mdash; die Felder unten werden automatisch ausgefüllt, du kannst danach alles noch anpassen.</p>
+      <div class="row2">
+        <div class="field">
+          <label>📷 Foto eines Rezepts</label>
+          <input type="file" id="rImportPhoto" accept="image/*" onchange="importRecipeFromPhoto(this.files[0])">
+        </div>
+        <div class="field">
+          <label>🔗 Link zu einem Rezept</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="rImportUrl" placeholder="https://…" style="flex:1;">
+            <button type="button" class="btn btn-outline" onclick="importRecipeFromUrl()">Laden</button>
+          </div>
+        </div>
+      </div>
+      <div id="recipeImportMsg"></div>
     </div>
     <form class="card-panel" id="addRecipeForm" style="display:none" onsubmit="return submitNewRecipe(event)">
       <div class="field">
@@ -994,9 +1012,71 @@ async function addRecipeIngredientsToList(recipeId) {
 /* ---------- Add recipe ---------- */
 function renderAddRecipeGate() {
   document.getElementById('addRecipeGate').style.display = isGuest() ? 'block' : 'none';
+  document.getElementById('recipeImportPanel').style.display = isGuest() ? 'none' : 'block';
   document.getElementById('addRecipeForm').style.display = isGuest() ? 'none' : 'block';
   if (!isGuest() && document.getElementById('ingredientRows').children.length === 0) {
     addIngredientRow(); addInstructionRow();
+  }
+}
+
+function fillRecipeFormFromImport(recipe) {
+  if (!recipe) return;
+  if (recipe.title) document.getElementById('rTitle').value = recipe.title;
+  if (recipe.description) document.getElementById('rDescription').value = recipe.description;
+  if (recipe.prep_minutes != null) document.getElementById('rPrep').value = recipe.prep_minutes;
+  if (recipe.cook_minutes != null) document.getElementById('rCook').value = recipe.cook_minutes;
+  if (recipe.servings != null) document.getElementById('rServings').value = recipe.servings;
+  if (Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0) {
+    document.getElementById('ingredientRows').innerHTML = '';
+    recipe.ingredients.forEach((ing) => addIngredientRow(ing.name || '', ing.amount || ''));
+  }
+  if (Array.isArray(recipe.instructions) && recipe.instructions.length > 0) {
+    document.getElementById('instructionRows').innerHTML = '';
+    recipe.instructions.forEach((step) => addInstructionRow(step));
+  }
+}
+
+async function importRecipeFromPhoto(file) {
+  if (!file) return;
+  const msgEl = document.getElementById('recipeImportMsg');
+  msgEl.innerHTML = '<div class="msg">Foto wird ausgewertet…</div>';
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const base64 = dataUrl.split(',')[1];
+    const { data, error } = await sb.functions.invoke('parse-recipe-photo', {
+      body: { imageBase64: base64, mediaType: file.type || 'image/jpeg' },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    fillRecipeFormFromImport(data?.recipe);
+    msgEl.innerHTML = '<div class="msg success">Foto ausgelesen &mdash; bitte unten prüfen und ergänzen.</div>';
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg error">Foto konnte nicht ausgewertet werden: ${escapeHtml(err?.message || String(err))}</div>`;
+  }
+}
+
+async function importRecipeFromUrl() {
+  const url = document.getElementById('rImportUrl').value.trim();
+  const msgEl = document.getElementById('recipeImportMsg');
+  if (!url) { msgEl.innerHTML = '<div class="msg error">Bitte einen Link eingeben.</div>'; return; }
+  msgEl.innerHTML = '<div class="msg">Link wird geladen…</div>';
+  try {
+    const { data, error } = await sb.functions.invoke('import-recipe-from-url', { body: { url } });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    if (data?.recipe?.found === false) {
+      msgEl.innerHTML = '<div class="msg error">Auf dieser Seite wurde kein Rezept gefunden &mdash; bitte manuell eintragen.</div>';
+      return;
+    }
+    fillRecipeFormFromImport(data?.recipe);
+    msgEl.innerHTML = '<div class="msg success">Rezept geladen &mdash; bitte unten prüfen und ergänzen.</div>';
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg error">Link konnte nicht geladen werden: ${escapeHtml(err?.message || String(err))}</div>`;
   }
 }
 

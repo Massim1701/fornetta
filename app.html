@@ -122,6 +122,11 @@
     display: inline-block; margin-top: 4px; font-weight: 700; color: var(--tomato); text-decoration: none;
   }
   .home-main { flex: 1; min-width: 0; }
+  .community-stats { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+  .community-stats .stat-row { display: flex; align-items: center; gap: 6px; }
+  .community-stats .dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa5b1; flex-shrink: 0; }
+  .community-stats .dot.live { background: #2ecc71; }
+  .community-stats b { color: var(--navy); }
   @media (max-width: 760px) {
     .home-layout { flex-direction: column; }
     .home-sidebar { width: 100%; position: static; order: 2; }
@@ -273,6 +278,7 @@
           <li>Kochbücher/Ratgeber verlinken</li>
         </ul>
         <a class="cta-link" href="#" onclick="showView('add'); return false;">Jetzt mitmachen →</a>
+        <div id="communityStats" class="community-stats"></div>
       </aside>
       <div class="home-main">
         <div id="laufbandWrap"></div>
@@ -1308,6 +1314,31 @@ async function renderProfile() {
   }
 }
 
+/* ---------- Community-Zähler (angemeldet / online) ---------- */
+async function renderCommunityStats() {
+  const el = document.getElementById('communityStats');
+  if (!el) return;
+  const { count } = await sb.from('profiles').select('*', { count: 'exact', head: true });
+  el.innerHTML = `
+    <div class="stat-row"><span class="dot"></span><span><b>${count ?? '–'}</b> angemeldet</span></div>
+    <div class="stat-row"><span class="dot live"></span><span><b id="onlineCount">1</b> gerade online</span></div>`;
+}
+
+function initPresence() {
+  if (!session || !session.user) return;
+  const channel = sb.channel('fornetta-online', { config: { presence: { key: session.user.id } } });
+  channel.on('presence', { event: 'sync' }, () => {
+    const state = channel.presenceState();
+    const onlineEl = document.getElementById('onlineCount');
+    if (onlineEl) onlineEl.textContent = Object.keys(state).length;
+  });
+  channel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await channel.track({ online_at: new Date().toISOString() });
+    }
+  });
+}
+
 /* ---------- Init ---------- */
 async function init() {
   await initAuth();
@@ -1316,6 +1347,8 @@ async function init() {
   renderFeed();
   renderLaufband();
   renderSeasonSection();
+  renderCommunityStats();
+  initPresence();
 }
 init();
 </script>

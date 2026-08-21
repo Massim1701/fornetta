@@ -108,6 +108,69 @@
   .recipe-card .meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
   .stars { color: var(--gold); font-size: 13px; }
 
+  /* ---------- Homepage layout: sidebar + main ---------- */
+  .home-layout { display: flex; gap: 24px; align-items: flex-start; }
+  .home-sidebar {
+    width: 260px; flex-shrink: 0; background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 18px; font-size: 13px; color: var(--navy); position: sticky; top: 110px;
+  }
+  .home-sidebar h3 { margin: 0 0 10px; font-size: 15px; }
+  .home-sidebar p { margin: 0 0 12px; color: var(--muted); line-height: 1.55; }
+  .home-sidebar ul { margin: 0 0 12px; padding-left: 18px; color: var(--muted); }
+  .home-sidebar li { margin-bottom: 6px; }
+  .home-sidebar a.cta-link {
+    display: inline-block; margin-top: 4px; font-weight: 700; color: var(--tomato); text-decoration: none;
+  }
+  .home-main { flex: 1; min-width: 0; }
+  @media (max-width: 760px) {
+    .home-layout { flex-direction: column; }
+    .home-sidebar { width: 100%; position: static; order: 2; }
+    .home-main { order: 1; }
+  }
+
+  /* ---------- Laufband: scrollende Bilderreihe ---------- */
+  .laufband-wrap { overflow: hidden; margin-bottom: 20px; border-radius: 16px; }
+  .laufband-track {
+    display: flex; gap: 12px; width: max-content;
+    animation: laufband-scroll 38s linear infinite;
+  }
+  .laufband-wrap:hover .laufband-track { animation-play-state: paused; }
+  @keyframes laufband-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .laufband-item {
+    width: 150px; height: 110px; border-radius: 12px; overflow: hidden; flex-shrink: 0;
+    background-size: cover; background-position: center; background-color: #f3e6d3;
+    position: relative; cursor: pointer;
+  }
+  .laufband-item .cap {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 8px;
+    background: linear-gradient(to top, rgba(27,42,74,0.85), transparent);
+    color: #fff; font-size: 11px; font-weight: 700;
+  }
+
+  /* ---------- Saison-Sektion ---------- */
+  .season-section { margin-bottom: 22px; }
+  .season-section h2 { font-size: 17px; margin: 0 0 4px; }
+  .season-section .sub { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .herb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .herb-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+    cursor: pointer; font-size: 13px;
+  }
+  .herb-card .herb-name { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+  .herb-card .herb-teaser { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .herb-detail { display: none; }
+  .herb-detail.open { display: block; }
+  .herb-detail-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-top: 10px; font-size: 13px;
+  }
+  .herb-detail-box h4 { margin: 12px 0 4px; font-size: 13px; color: var(--tomato); }
+  .herb-detail-box h4:first-child { margin-top: 0; }
+  .herb-detail-box p { margin: 0; color: var(--navy); line-height: 1.5; }
+  .herb-detail-box .close-herb { float: right; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 13px; }
+
   .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 14px; }
 
   .card-panel {
@@ -199,11 +262,28 @@
 
   <!-- FEED -->
   <section class="view active" id="view-feed">
-    <div class="search-row">
-      <input type="text" id="searchInput" placeholder="Rezepte durchsuchen…" oninput="renderFeed()">
-      <select id="categorySelect" onchange="renderFeed()"><option value="">Alle Kategorien</option></select>
+    <div class="home-layout">
+      <aside class="home-sidebar">
+        <h3>Warum Fornetta?</h3>
+        <p>Fornetta lebt davon, dass viele mitmachen. Jedes Rezept, jeder Tipp und jede Alternative, die hier landet, hilft der ganzen Community weiter — je mehr Leute mitkochen und beitragen, desto besser wird die Sammlung.</p>
+        <p>Du hast einen Trick, eine Zutaten-Alternative oder Hilfe zu einem Rezept? Immer her damit. Auch Autor:innen sind willkommen: verlinkt gerne eure Kochbücher oder Ratgeber, wenn sie zu einem Rezept passen.</p>
+        <ul>
+          <li>Eigene Rezepte anlegen</li>
+          <li>Tipps &amp; Alternativen ergänzen</li>
+          <li>Kochbücher/Ratgeber verlinken</li>
+        </ul>
+        <a class="cta-link" href="#" onclick="showView('add'); return false;">Jetzt mitmachen →</a>
+      </aside>
+      <div class="home-main">
+        <div id="laufbandWrap"></div>
+        <div id="seasonSection"></div>
+        <div class="search-row">
+          <input type="text" id="searchInput" placeholder="Rezepte durchsuchen…" oninput="renderFeed()">
+          <select id="categorySelect" onchange="renderFeed()"><option value="">Alle Kategorien</option></select>
+        </div>
+        <div id="feedContainer" class="loading-spin">Rezepte werden geladen…</div>
+      </div>
     </div>
-    <div id="feedContainer" class="loading-spin">Rezepte werden geladen…</div>
   </section>
 
   <!-- FAVORITES -->
@@ -780,7 +860,7 @@ async function loadCategories() {
 /* ---------- Feed ---------- */
 async function loadRecipes() {
   const { data, error } = await sb.from('recipes').select(`
-    id, author_id, title, description, image_url, prep_minutes, cook_minutes, servings, difficulty, category_id, created_at,
+    id, author_id, title, description, image_url, prep_minutes, cook_minutes, servings, difficulty, category_id, created_at, season_months,
     profiles!author_id ( username ), ratings ( stars )
   `).order('created_at', { ascending: false });
   if (error) { console.error(error); recipes = []; return; }
@@ -788,6 +868,65 @@ async function loadRecipes() {
     const stars = (r.ratings || []).map((x) => x.stars);
     return { ...r, avg_stars: stars.length ? stars.reduce((a,b)=>a+b,0)/stars.length : null, rating_count: stars.length, author_username: r.profiles?.username };
   });
+}
+
+/* ---------- Laufband (kuratierte Saison-Fotos) ---------- */
+async function renderLaufband() {
+  const wrap = document.getElementById('laufbandWrap');
+  if (!wrap) return;
+  const month = new Date().getMonth() + 1;
+  const items = recipes.filter((r) => Array.isArray(r.season_months) && r.season_months.includes(month) && r.image_url);
+  if (items.length === 0) { wrap.innerHTML = ''; return; }
+  let track = items;
+  while (track.length < 8) track = track.concat(items);
+  const doubled = track.concat(track);
+  wrap.innerHTML = `<div class="laufband-wrap"><div class="laufband-track">${doubled.map((r) => `
+    <div class="laufband-item" style="background-image:url('${r.image_url}')" onclick="openRecipeDetail('${r.id}')">
+      <div class="cap">${escapeHtml(r.title)}</div>
+    </div>`).join('')}</div></div>`;
+}
+
+/* ---------- Saison-Sektion: Wildkräuter ---------- */
+const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+window._seasonHerbs = [];
+
+async function renderSeasonSection() {
+  const container = document.getElementById('seasonSection');
+  if (!container) return;
+  const month = new Date().getMonth() + 1;
+  const { data: herbs, error } = await sb.from('herbs').select('*');
+  if (error) { console.error(error); container.innerHTML = ''; return; }
+  const inSeason = (herbs || []).filter((h) => Array.isArray(h.months) && h.months.includes(month));
+  window._seasonHerbs = inSeason;
+  if (inSeason.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="season-section">
+      <h2>🌿 Gerade im ${MONTH_NAMES[month - 1]} in Saison</h2>
+      <p class="sub">Wildkräuter, die du jetzt draußen findest – mit Nutzen, Zubereitung und Sammelhinweisen.</p>
+      <div class="herb-grid">${inSeason.map((h) => `
+        <div class="herb-card" onclick="toggleHerbDetail('${h.id}')">
+          <div class="herb-name">${escapeHtml(h.name)}</div>
+          <div class="herb-teaser">${escapeHtml(h.nutzen || '')}</div>
+        </div>`).join('')}</div>
+      <div id="herbDetailArea"></div>
+    </div>`;
+}
+
+async function toggleHerbDetail(id) {
+  const herb = (window._seasonHerbs || []).find((h) => h.id === id);
+  const area = document.getElementById('herbDetailArea');
+  if (!herb || !area) return;
+  const { data: links } = await sb.from('herb_recipes').select('recipe_id').eq('herb_id', id);
+  const linkedRecipes = (links || []).map((l) => recipes.find((r) => r.id === l.recipe_id)).filter(Boolean);
+  area.innerHTML = `
+    <div class="herb-detail-box">
+      <button class="close-herb" onclick="document.getElementById('herbDetailArea').innerHTML=''">✕ schließen</button>
+      <h3 style="margin:0 0 8px">${escapeHtml(herb.name)}</h3>
+      <h4>Nutzen</h4><p>${escapeHtml(herb.nutzen || '–')}</p>
+      <h4>Zubereitung</h4><p>${escapeHtml(herb.zubereitung || '–')}</p>
+      <h4>Sammelhinweise</h4><p>${escapeHtml(herb.sammelhinweise || '–')}</p>
+      ${linkedRecipes.length ? `<h4>Passende Rezepte</h4><p>${linkedRecipes.map((r) => `<a href="#" onclick="openRecipeDetail('${r.id}'); return false;" style="color:var(--tomato);font-weight:700;text-decoration:none;margin-right:10px;">${escapeHtml(r.title)}</a>`).join('')}</p>` : ''}
+    </div>`;
 }
 
 async function loadFavoriteIds() {
@@ -799,10 +938,9 @@ async function loadFavoriteIds() {
 }
 
 function recipeCardHtml(r) {
-  const thumb = r.image_url ? `style="background-image:url('${r.image_url}')"` : '';
   return `
     <div class="recipe-card" onclick="openRecipeDetail('${r.id}')">
-      <div class="thumb" ${thumb}>${r.image_url ? '' : '🍽️'}</div>
+      <div class="thumb">🍽️</div>
       <div class="info">
         <div class="title">${favoriteIds.has(r.id) ? '⭐ ' : ''}${escapeHtml(r.title)}</div>
         <div class="meta">
@@ -1176,6 +1314,8 @@ async function init() {
   await Promise.all([loadCategories(), loadRecipes()]);
   await loadFavoriteIds();
   renderFeed();
+  renderLaufband();
+  renderSeasonSection();
 }
 init();
 </script>

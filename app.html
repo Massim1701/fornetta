@@ -464,6 +464,14 @@
   </div>
 </div>
 
+<!-- HERB DETAIL MODAL -->
+<div class="modal-backdrop" id="herbModal">
+  <div class="modal" style="max-width:560px;">
+    <button class="modal-close" onclick="closeModal('herbModal')">&times;</button>
+    <div id="herbDetailContent" class="loading-spin">Lade…</div>
+  </div>
+</div>
+
 <!-- AUTH MODAL -->
 <div class="modal-backdrop" id="authModal">
   <div class="modal">
@@ -921,27 +929,28 @@ async function renderSeasonSection() {
             <div class="herb-teaser">${escapeHtml(h.nutzen || '')}</div>
           </div>
         </div>`).join('')}</div>
-      <div id="herbDetailArea"></div>
     </div>`;
 }
 
 async function toggleHerbDetail(id) {
   const herb = (window._seasonHerbs || []).find((h) => h.id === id);
-  const area = document.getElementById('herbDetailArea');
-  if (!herb || !area) return;
+  if (!herb) return;
+  openModal('herbModal');
+  const content = document.getElementById('herbDetailContent');
+  content.innerHTML = '<div class="loading-spin">Lade…</div>';
   const { data: links } = await sb.from('herb_recipes').select('recipe_id').eq('herb_id', id);
   const linkedRecipes = (links || []).map((l) => recipes.find((r) => r.id === l.recipe_id)).filter(Boolean);
-  area.innerHTML = `
-    <div class="herb-detail-box">
-      <button class="close-herb" onclick="document.getElementById('herbDetailArea').innerHTML=''">✕ schließen</button>
+  content.innerHTML = `
+    <div class="herb-detail-box" style="padding:0;border:none;margin-top:0;">
       <h3 style="margin:0 0 8px">${escapeHtml(herb.name)}</h3>
       ${herb.image_url ? `<img class="herb-detail-img" src="${herb.image_url}" alt="${escapeHtml(herb.name)}">
       <div class="herb-photo-credit">Foto: Wikimedia Commons</div>` : ''}
       <h4>Nutzen</h4><p>${escapeHtml(herb.nutzen || '–')}</p>
       <h4>Zubereitung</h4><p>${escapeHtml(herb.zubereitung || '–')}</p>
       <h4>Sammelhinweise</h4><p>${escapeHtml(herb.sammelhinweise || '–')}</p>
-      ${linkedRecipes.length ? `<h4>Passende Rezepte</h4><p>${linkedRecipes.map((r) => `<a href="#" onclick="openRecipeDetail('${r.id}'); return false;" style="color:var(--tomato);font-weight:700;text-decoration:none;margin-right:10px;">${escapeHtml(r.title)}</a>`).join('')}</p>` : ''}
-    </div>`;
+      ${linkedRecipes.length ? `<h4>Passende Rezepte</h4><p>${linkedRecipes.map((r) => `<a href="#" onclick="closeModal('herbModal'); openRecipeDetail('${r.id}'); return false;" style="color:var(--tomato);font-weight:700;text-decoration:none;margin-right:10px;">${escapeHtml(r.title)}</a>`).join('')}</p>` : ''}
+    </div>
+  `;
 }
 
 async function loadFavoriteIds() {
@@ -1019,6 +1028,10 @@ async function openRecipeDetail(id) {
       </div>
       <button class="fav-btn ${isFav ? 'active' : ''}" id="favBtn" onclick="toggleFavorite('${id}')">${isFav ? '❤️' : '🤍'}</button>
     </div>
+    <div style="display:flex;gap:8px;margin:10px 0 0;">
+      <button class="btn btn-outline" onclick="printRecipe('${id}')" title="Rezept drucken">🖨️ Drucken</button>
+      <button class="btn btn-outline" onclick="saveRecipeAsPdf('${id}')" title="Als PDF speichern">💾 Speichern (PDF)</button>
+    </div>
     <div style="margin:12px 0;">
       ${cat ? `<span class="tag-pill">${escapeHtml(cat.name)}</span>` : ''}
       ${diffLabel ? `<span class="tag-pill">${diffLabel}</span>` : ''}
@@ -1046,6 +1059,65 @@ async function openRecipeDetail(id) {
   `;
 
   window._currentDetailStars = myStars;
+}
+
+function buildPrintableRecipeHtml(recipe, ingredients) {
+  const metaParts = [
+    recipe.servings != null ? recipe.servings + ' Portionen' : '',
+    recipe.prep_minutes != null ? 'Vorbereitung ' + recipe.prep_minutes + ' Min.' : '',
+    recipe.cook_minutes != null ? 'Kochzeit ' + recipe.cook_minutes + ' Min.' : '',
+  ].filter(Boolean).join(' · ');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(recipe.title)} – Fornetta</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;color:#1b2a4a;max-width:720px;margin:24px auto;padding:0 20px;}
+  h1{font-size:26px;margin:0 0 6px;}
+  .meta{color:#666;font-size:13px;margin-bottom:16px;}
+  img{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:16px;}
+  h2{font-size:17px;border-bottom:1px solid #ddd;padding-bottom:4px;margin-top:26px;}
+  ul,ol{padding-left:22px;}
+  li{margin-bottom:6px;line-height:1.4;}
+  .footer{margin-top:36px;color:#999;font-size:11px;}
+  @media print { body{margin:0;padding:0 12mm;} }
+</style></head>
+<body>
+  <h1>${escapeHtml(recipe.title)}</h1>
+  <div class="meta">${metaParts}</div>
+  ${recipe.image_url ? `<img src="${recipe.image_url}">` : ''}
+  ${recipe.description ? `<p>${escapeHtml(recipe.description)}</p>` : ''}
+  <h2>Zutaten</h2>
+  <ul>${(ingredients || []).map((i) => `<li>${i.amount ? escapeHtml(i.amount) + ' ' : ''}${escapeHtml(i.name)}</li>`).join('') || '<li>Keine Zutaten hinterlegt.</li>'}</ul>
+  <h2>Zubereitung</h2>
+  <ol>${(recipe.instructions || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ol>
+  <div class="footer">Von Fornetta · fornetta.online</div>
+</body></html>`;
+}
+
+async function openPrintableRecipeWindow(id) {
+  const [{ data: recipe }, { data: ingredients }] = await Promise.all([
+    sb.from('recipes').select('*').eq('id', id).single(),
+    sb.from('recipe_ingredients').select('*').eq('recipe_id', id).order('position'),
+  ]);
+  if (!recipe) return null;
+  const html = buildPrintableRecipeHtml(recipe, ingredients);
+  const w = window.open('', '_blank');
+  if (!w) { alert('Bitte Pop-ups für Fornetta erlauben, um zu drucken oder zu speichern.'); return null; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  return w;
+}
+
+async function printRecipe(id) {
+  const w = await openPrintableRecipeWindow(id);
+  if (!w) return;
+  const doPrint = () => { try { w.focus(); w.print(); } catch (e) {} };
+  if (w.document.readyState === 'complete') setTimeout(doPrint, 200);
+  else w.addEventListener('load', () => setTimeout(doPrint, 200));
+}
+
+async function saveRecipeAsPdf(id) {
+  // Nutzt den Browser-Druckdialog: dort "Als PDF speichern" als Ziel wählen.
+  await printRecipe(id);
 }
 
 function setMyStars(n) {

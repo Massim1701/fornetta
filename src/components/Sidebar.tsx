@@ -6,7 +6,7 @@ import type { AgentRow, ProjectRow, Provider } from "@/lib/types";
 
 interface SidebarProps {
   selectedProjectId: string | null;
-  onSelectProject: (projectId: string) => void;
+  onSelectProject: (project: ProjectRow) => void;
 }
 
 export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarProps) {
@@ -86,7 +86,7 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
       setProjects((prev) => [data, ...prev]);
       setNewProjectName("");
       setNewProjectDescription("");
-      onSelectProject(data.id);
+      onSelectProject(data);
     }
   }
 
@@ -117,7 +117,7 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
           {projects.map((project) => (
             <li key={project.id}>
               <button
-                onClick={() => onSelectProject(project.id)}
+                onClick={() => onSelectProject(project)}
                 className={`w-full rounded-md px-3 py-2 text-left text-sm transition ${
                   project.id === selectedProjectId
                     ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"

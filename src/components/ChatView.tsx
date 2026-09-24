@@ -11,6 +11,7 @@ interface ChatViewProps {
 export default function ChatView({ project }: ChatViewProps) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [agentsById, setAgentsById] = useState<Record<string, AgentRow>>({});
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -38,6 +39,7 @@ export default function ChatView({ project }: ChatViewProps) {
         setAgentsById(map);
       }
       if (messageRows) setMessages(messageRows);
+      setLoadedProjectId(project!.id);
     }
 
     loadInitial();
@@ -97,7 +99,10 @@ export default function ChatView({ project }: ChatViewProps) {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-        {messages.map((message) => {
+        {loadedProjectId !== project.id && (
+          <p className="text-sm text-neutral-400">Lade Nachrichten…</p>
+        )}
+        {loadedProjectId === project.id && messages.map((message) => {
           const agent = message.sender_id ? agentsById[message.sender_id] : null;
           const senderName = message.sender_type === "user" ? "Du" : agent?.name ?? "Unbekannter Agent";
           const senderRole = message.sender_type === "agent" ? agent?.role : null;
@@ -122,7 +127,7 @@ export default function ChatView({ project }: ChatViewProps) {
             </div>
           );
         })}
-        {messages.length === 0 && (
+        {loadedProjectId === project.id && messages.length === 0 && (
           <p className="text-sm text-neutral-400">Noch keine Nachrichten in diesem Projekt.</p>
         )}
         <div ref={bottomRef} />

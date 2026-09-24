@@ -36,3 +36,17 @@ npm run dev
 ## Umfang v1
 
 Nur Datenmodell, Realtime-Chat-UI und CRUD für Projekte/Agenten. Keine Agenten-Logik/Orchestrierung.
+
+## Google-Agent (Gemini)
+
+`supabase/functions/agent-google` beantwortet neue Nachrichten automatisch als der `google`-Provider-Agent
+eines Projekts. Ein DB-Trigger (`supabase/migrations/..._agent_google_webhook.sql`) ruft die Function bei
+jedem Insert in `messages` per `pg_net` auf; ohne konfigurierten Key antwortet sie einfach nicht (No-Op).
+
+Secret setzen (einmalig, nicht ins Repo):
+
+```bash
+supabase secrets set GEMINI_API_KEY=... --project-ref qzsvopcszoenbtloicgj
+```
+
+Key erzeugen unter https://aistudio.google.com/apikey (Format `AIzaSy...`).

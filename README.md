@@ -50,3 +50,18 @@ supabase secrets set GEMINI_API_KEY=... --project-ref qzsvopcszoenbtloicgj
 ```
 
 Key erzeugen unter https://aistudio.google.com/apikey (Format `AIzaSy...`).
+
+## OpenAI-Agent
+
+Gleiches Prinzip wie beim Google-Agenten: `supabase/functions/agent-openai` beantwortet Nachrichten als der
+`openai`-Provider-Agent eines Projekts (Chat-Completions-API, Modell konfigurierbar über `OPENAI_MODEL`,
+Default `gpt-4o-mini`). Derselbe DB-Trigger benachrichtigt jetzt beide Functions.
+
+```bash
+supabase secrets set OPENAI_API_KEY=... --project-ref qzsvopcszoenbtloicgj
+```
+
+**Bewusst nicht automatisiert:** CL Web und CL Code (die `anthropic`-Agenten mit echtem Tool-Zugriff, die
+Code ändern/Migrationen anwenden können) werden nicht durch eine einfache Chat-Completion-Function ersetzt –
+die hätte nur Text-Output, keine echten Fähigkeiten. Sie laufen weiter als reale Claude-Sessions, die den
+Thread manuell/per Loop abfragen.

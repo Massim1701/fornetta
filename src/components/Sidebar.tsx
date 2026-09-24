@@ -200,6 +200,7 @@ export default function Sidebar({ selectedProjectId, onSelectProject }: SidebarP
               >
                 <option value="anthropic">Anthropic</option>
                 <option value="google">Google</option>
+                <option value="openai">OpenAI</option>
               </select>
               <button
                 type="submit"

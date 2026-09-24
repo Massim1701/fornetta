@@ -1,4 +1,4 @@
-export type Provider = "anthropic" | "google";
+export type Provider = "anthropic" | "google" | "openai";
 export type SenderType = "agent" | "user";
 
 export interface ProjectRow {
